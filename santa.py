@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+import urllib.parse
 
 TOKEN = "8472545439:AAFEN0Ge-xNKEC89_MYOinEh-8Kc0plKn9g"
 
@@ -39,20 +40,27 @@ def save_pairs(d):
         json.dump(d, f, ensure_ascii=False, indent=2)
 
 def format_link(link, text=None, max_length=40):
-    """Форматирует ссылку для HTML-разметки"""
+    """Форматирует ссылку для Telegram HTML-разметки"""
+    if not link:
+        return ""
+    
+    # Убедимся, что ссылка начинается с http:// или https://
     if not link.startswith(('http://', 'https://')):
         link = 'https://' + link
     
     if text is None:
         # Берем текст из ссылки (домен)
-        import urllib.parse
-        parsed = urllib.parse.urlparse(link)
-        text = parsed.netloc if parsed.netloc else "Ссылка"
+        try:
+            parsed = urllib.parse.urlparse(link)
+            text = parsed.netloc if parsed.netloc else "Ссылка"
+        except:
+            text = "Ссылка"
     
     # Обрезаем текст если слишком длинный
     if len(text) > max_length:
         text = text[:max_length-3] + "..."
     
+    # Используем HTML-разметку для ссылок
     return f'<a href="{link}">{text}</a>'
 
 def get_main_keyboard(uid, data):
