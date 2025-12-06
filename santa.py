@@ -212,7 +212,7 @@ async def view_profile(msg: types.Message):
         for i, item in enumerate(user_data["wishlist_items"], 1):
             text += f"{i}. <b>{item['name']}</b>\n"
             text += f"   💰 Цена: {item['price']}\n"
-            text += f"   🔗 Ссылка: {item['link'][:50]}...\n\n"
+            text += f'   🔗 <a href="{item["link"]}">Ссылка на подарок</a>\n\n'
     
     # Проверяем жеребьёвку
     pairs_data = load_pairs()
@@ -463,10 +463,11 @@ async def add_wishlist(msg: types.Message):
     
     user_data = data["users"][str(uid)]
     
+
     text = "🎁 <b>Ваш текущий вишлист:</b>\n\n"
     if "wishlist_items" in user_data and user_data["wishlist_items"]:
         for i, item in enumerate(user_data["wishlist_items"], 1):
-            text += f"{i}. <b>{item['name']}</b>\n   💰 {item['price']}\n   🔗 {item['link'][:50]}...\n\n"
+            text += f"{i}. <b>{item['name']}</b>\n   💰 {item['price']}\n   🔗 <a href=\"{item['link']}\">Ссылка на подарок</a>\n\n"
     else:
         text += "Пока пусто. Добавьте первый подарок!\n\n"
     
@@ -576,9 +577,9 @@ async def wishlist_steps(msg: types.Message):
                 resize_keyboard=True
             )
             
-            await msg.answer(f"✅ Подарок добавлен!\n\n🎁 <b>{item['name']}</b>\n💰 {item['price']} руб.\n🔗 {item['link'][:50]}...\n\nДобавить ещё подарок или завершить?", reply_markup=kb)
-            user_temp[uid]["step"] = "wishmore"
         
+            await msg.answer(f"✅ Подарок добавлен!\n\n🎁 <b>{item['name']}</b>\n💰 {item['price']} руб.\n🔗 <a href=\"{item['link']}\">Ссылка на подарок</a>\n\nДобавить ещё подарок или завершить?", reply_markup=kb, parse_mode="HTML")
+            user_temp[uid]["step"] = "wishmore"
         elif user_temp[uid].get("mode") in ["add_only", "edit_existing"]:
             data = load_data()
             if str(uid) in data["users"]:
@@ -589,7 +590,7 @@ async def wishlist_steps(msg: types.Message):
             
             del user_temp[uid]
             kb = get_main_keyboard(uid, data)
-            await msg.answer(f"✅ Подарок добавлен в вишлист!", reply_markup=kb)
+            await msg.answer(f"✅ Подарок добавлен в вишлист!", reply_markup=kb, parse_mode="HTML")
 
 # Обработка завершения вишлиста при регистрации
 @dp.message(lambda m: m.from_user.id in user_temp and user_temp[m.from_user.id].get("step") == "wishmore")
@@ -611,11 +612,12 @@ async def show_confirmation(msg: types.Message, uid: int):
     text += f"💭 <b>Хочу получить:</b>\n{user_data['wish']}\n\n"
     text += f"🚫 <b>Не хочу получать:</b>\n{user_data['antis']}\n\n"
     
+
     if "wishlist_items" in user_data and user_data["wishlist_items"]:
         text += "🎁 <b>Вишлист:</b>\n"
         for i, item in enumerate(user_data["wishlist_items"], 1):
             text += f"{i}. <b>{item['name']}</b> - {item['price']} руб.\n"
-            text += f"   🔗 {item['link'][:50]}...\n\n"
+            text += f'   🔗 <a href="{item["link"]}">Ссылка на подарок</a>\n\n'
     
     kb = ReplyKeyboardMarkup(
         keyboard=[
@@ -626,7 +628,7 @@ async def show_confirmation(msg: types.Message, uid: int):
     )
     
     user_temp[uid]["step"] = "confirmation"
-    await msg.answer(text + "<b>Всё верно?</b>", reply_markup=kb)
+    await msg.answer(text + "<b>Всё верно?</b>", reply_markup=kb, parse_mode="HTML")
 
 # Обработка подтверждения анкеты
 @dp.message(lambda m: m.from_user.id in user_temp and user_temp[m.from_user.id].get("step") == "confirmation")
@@ -700,7 +702,7 @@ async def show_wishlist_edit_confirm(msg: types.Message, uid: int):
         resize_keyboard=True
     )
     
-    await msg.answer(text + "\n<b>Что хотите сделать с вишлистом?</b>", reply_markup=kb)
+    await msg.answer(text + "\n<b>Что хотите сделать с вишлистом?</b>", reply_markup=kb, parse_mode="HTML")
 
 # Обработка редактирования вишлиста при проверке
 @dp.message(lambda m: m.from_user.id in user_temp and user_temp[m.from_user.id].get("step") == "edit_wishlist_confirm")
@@ -714,7 +716,7 @@ async def edit_wishlist_confirm_handler(msg: types.Message):
     
     elif msg.text == "🗑️ Удалить подарок":
         user_temp[uid]["step"] = "delete_wishlist_confirm"
-        await msg.answer("Введите номер подарка для удаления (только цифру):")
+        await msg.answer("Введите номер подарка для удаления (только 1 цифру):")
     
     elif msg.text == "✅ Готово, вернуться к проверке":
         await show_confirmation(msg, uid)
@@ -745,17 +747,34 @@ async def edit_value_handler(msg: types.Message):
     await show_confirmation(msg, uid)
 
 # Обработка удаления из вишлиста (из меню добавления)
+# Обработка удаления из вишлиста (из меню добавления)
 @dp.message(lambda m: m.from_user.id in user_temp and user_temp[m.from_user.id].get("step") == "delete_wishlist")
 async def delete_wishlist_handler(msg: types.Message):
     uid = msg.from_user.id
-    data = load_data()
     
-    if str(uid) not in data["users"]:
-        await msg.answer("❌ Ошибка: пользователь не найден.")
+    # ПРОВЕРЯЕМ СПЕЦИАЛЬНЫЕ КНОПКИ ПРЕЖДЕ ВСЕГО
+    if msg.text == "✅ Готово":
+        del user_temp[uid]
+        data = load_data()
+        kb = get_main_keyboard(uid, data)
+        await msg.answer("✅ Готово!", reply_markup=kb)
         return
     
+    if msg.text == "➕ Добавить новый подарок":
+        user_temp[uid]["step"] = "wishlink"
+        user_temp[uid]["mode"] = "add_only"
+        await msg.answer("🔗 Отправьте ссылку на подарок:")
+        return
+    
+    # ТОЛЬКО ЕСЛИ ЭТО НЕ КНОПКА, ПЫТАЕМСЯ ПАРСИТЬ ЦИФРУ
     try:
         num = int(msg.text) - 1
+        data = load_data()
+        
+        if str(uid) not in data["users"]:
+            await msg.answer("❌ Ошибка: пользователь не найден.")
+            return
+        
         if "wishlist_items" in data["users"][str(uid)] and 0 <= num < len(data["users"][str(uid)]["wishlist_items"]):
             deleted = data["users"][str(uid)]["wishlist_items"].pop(num)
             save_data(data)
@@ -765,7 +784,7 @@ async def delete_wishlist_handler(msg: types.Message):
             text = "🎁 <b>Ваш обновленный вишлист:</b>\n\n"
             if data["users"][str(uid)]["wishlist_items"]:
                 for i, item in enumerate(data["users"][str(uid)]["wishlist_items"], 1):
-                    text += f"{i}. <b>{item['name']}</b>\n   💰 {item['price']}\n   🔗 {item['link'][:50]}...\n\n"
+                    text += f"{i}. <b>{item['name']}</b>\n   💰 {item['price']}\n   🔗 <a href=\"{item['link']}\">Ссылка на подарок</a>\n\n"
             else:
                 text += "Пока пусто.\n\n"
             
@@ -777,7 +796,7 @@ async def delete_wishlist_handler(msg: types.Message):
                 ],
                 resize_keyboard=True
             )
-            await msg.answer(text + "<b>Что дальше?</b>", reply_markup=kb)
+            await msg.answer(text + "<b>Что дальше?</b>", reply_markup=kb, parse_mode="HTML")
         else:
             await msg.answer("❌ Неверный номер. Попробуйте еще раз.")
     except ValueError:
@@ -1110,14 +1129,14 @@ async def draw(msg: types.Message):
                 for i, item in enumerate(r["wishlist_items"], 1):
                     text += f"\n{i}. <b>{item['name']}</b>\n"
                     text += f"   💰 Цена: {item['price']}\n"
-                    text += f"   🔗 Ссылка: {item['link'][:50]}...\n"
+                    text += f'   🔗 <a href="{item["link"]}">Ссылка на подарок</a>\n'
             
             text += "\n\n💌 <b>Хотите что-то уточнить у получателя?</b>\n"
             text += "Используйте кнопку '💌 Спросить получателя' для общения!"
             
             kb = get_main_keyboard(g, data)
             
-            await bot.send_message(g, text, reply_markup=kb)
+            await bot.send_message(g, text, reply_markup=kb, parse_mode="HTML")
         except Exception as e:
             print(f"Ошибка отправки: {e}")
 
@@ -1139,4 +1158,5 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
+
     asyncio.run(main())
